@@ -1,11 +1,12 @@
-##how to run##
-python collapse_validate.py --csv umcp_full_audit.csv \
-  --alpha 1 --eps 1e-8 --p 3 --tolT 0.02 --tolW 0.02 --pivot 0.99 \
-  --out report.csv
-
----
-
 #!/usr/bin/env python3
+"""Collapse Calculus step validator.
+
+Usage:
+    python collapse_validate.py --csv umcp_full_audit.csv \
+      --alpha 1 --eps 1e-8 --p 3 --tolT 0.02 --tolW 0.02 --pivot 0.99 \
+      --out report.csv
+"""
+
 import csv, math, argparse, sys
 from typing import Tuple, Dict
 
