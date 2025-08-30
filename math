@@ -1,0 +1,133 @@
+##how to run##
+python collapse_validate.py --csv umcp_full_audit.csv \
+  --alpha 1 --eps 1e-8 --p 3 --tolT 0.02 --tolW 0.02 --pivot 0.99 \
+  --out report.csv
+
+---
+
+#!/usr/bin/env python3
+import csv, math, argparse, sys
+from typing import Tuple, Dict
+
+def phi(omega: float, eps: float, p: float, face: str) -> float:
+    if face == "exact":
+        return 2.0*math.log(max(1.0-omega, 1e-300)) + math.log(max(1.0-omega+eps, 1e-300))
+    # normal
+    return p*math.log(max(1.0-omega, 1e-300))
+
+def gamma_pointwise(omega: float, eps: float, p: float, face: str) -> float:
+    if face == "exact":
+        return 2.0/(1.0-omega) + 1.0/(1.0-omega+eps)
+    return p/(1.0-omega)
+
+def gamma_secant(om_minus: float, om_plus: float, eps: float, p: float, face: str) -> float:
+    # assume face fixed on the interval; caller ensures step-splitting if needed
+    d_om = om_plus - om_minus
+    if abs(d_om) < 1e-15:
+        # fall back to pointwise
+        return gamma_pointwise(om_minus, eps, p, face)
+    num = phi(om_minus, eps, p, face) - phi(om_plus, eps, p, face)
+    return num / d_om
+
+def choose_face(omega: float, guard_on: bool, eps: float, pivot: float) -> str:
+    # conservative default: use exact face when guard is on OR near the wall
+    return "exact" if (guard_on or omega >= pivot) else "normal"
+
+def transport_update_U(U_n: float, om_n: float, om_np1: float, alpha: float,
+                       eps: float, p: float, face: str) -> float:
+    Gam = gamma_secant(om_n, om_np1, eps, p, face)
+    return U_n - (1.0/alpha) * Gam * (om_np1 - om_n)
+
+def validate_step(row_n: Dict[str,str], row_np1: Dict[str,str],
+                  alpha: float, eps: float, p: float,
+                  tolT: float, tolW: float, pivot: float) -> Dict[str, float]:
+    # parse needed fields
+    om_n   = float(row_n["omega"])
+    C_n    = float(row_n["C"])
+    tau_n  = float(row_n["tau_R"])
+    k_n    = float(row_n.get("kappa") or math.log(float(row_n["IC"])))
+    U_n    = C_n/(1.0+tau_n)
+
+    om_np1  = float(row_np1["omega"])
+    C_np1   = float(row_np1["C"])
+    tau_np1 = float(row_np1["tau_R"])
+    k_np1   = float(row_np1.get("kappa") or math.log(float(row_np1["IC"])))
+    U_np1   = C_np1/(1.0+tau_np1)
+
+    guard_n   = row_n.get("guard_on", "0") in ("1","true","True","TRUE")
+    guard_np1 = row_np1.get("guard_on", "0") in ("1","true","True","TRUE")
+
+    face_n   = choose_face(om_n,   guard_n,   eps, pivot)
+    face_np1 = choose_face(om_np1, guard_np1, eps, pivot)
+
+    # If face changes, split the step at the pivot omega= pivot, validate halves
+    if face_n != face_np1:
+        # linear split in omega; recompute U at split via transport with first face
+        om_mid = pivot
+        # protect: if pivot not between omegas, fallback to pointwise
+        if not (min(om_n, om_np1) <= om_mid <= max(om_n, om_np1)):
+            face = face_n
+            U_pred = transport_update_U(U_n, om_n, om_np1, alpha, eps, p, face)
+            rT = U_np1 - U_pred
+        else:
+            # half 1
+            U_mid = transport_update_U(U_n, om_n, om_mid, alpha, eps, p, face_n)
+            # half 2
+            U_pred = transport_update_U(U_mid, om_mid, om_np1, alpha, eps, p, face_np1)
+            rT = U_np1 - U_pred
+    else:
+        face = face_n
+        U_pred = transport_update_U(U_n, om_n, om_np1, alpha, eps, p, face)
+        rT = U_np1 - U_pred
+
+    rW = k_np1 - k_n
+    okT = abs(rT) <= tolT
+    okW = abs(rW) <= tolW
+
+    return {
+        "omega_n": om_n, "omega_np1": om_np1,
+        "face_n": face_n, "face_np1": face_np1,
+        "U_n": U_n, "U_np1": U_np1, "U_pred": U_pred,
+        "rT": rT, "rW": rW, "okT": float(okT), "okW": float(okW),
+    }
+
+def main():
+    ap = argparse.ArgumentParser(description="Collapse Calculus step validator")
+    ap.add_argument("--csv", required=True, help="audit CSV sorted by time")
+    ap.add_argument("--alpha", type=float, default=1.0)
+    ap.add_argument("--eps", type=float, default=1e-8)
+    ap.add_argument("--p", type=float, default=3.0)
+    ap.add_argument("--tolT", type=float, default=2e-2)   # transport tol
+    ap.add_argument("--tolW", type=float, default=2e-2)   # weld tol
+    ap.add_argument("--pivot", type=float, default=0.99,  # face pivot omega
+                    help="omega at which to pivot to exact face when guard/near-wall")
+    ap.add_argument("--out", default="-", help="output CSV path or '-' for stdout")
+    args = ap.parse_args()
+
+    with open(args.csv, newline="") as f:
+        rows = list(csv.DictReader(f))
+    if len(rows) < 2:
+        sys.exit("need at least two rows")
+
+    out = sys.stdout if args.out == "-" else open(args.out, "w", newline="")
+    writer = csv.DictWriter(out, fieldnames=[
+        "idx","omega_n","omega_np1","face_n","face_np1","U_n","U_np1","U_pred","rT","rW","okT","okW"
+    ])
+    writer.writeheader()
+
+    passes_T = passes_W = 0
+    for i in range(len(rows)-1):
+        res = validate_step(rows[i], rows[i+1], args.alpha, args.eps, args.p, args.tolT, args.tolW, args.pivot)
+        res["idx"] = i
+        writer.writerow(res)
+        passes_T += int(res["okT"]==1.0)
+        passes_W += int(res["okW"]==1.0)
+
+    if out is not sys.stdout:
+        out.close()
+
+    total = len(rows)-1
+    print(f"# summary: transport_pass={passes_T}/{total}  weld_pass={passes_W}/{total}", file=sys.stderr)
+
+if __name__ == "__main__":
+    main()
