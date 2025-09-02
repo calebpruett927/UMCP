@@ -1,0 +1,209 @@
+# UMCP/RCFT cross‑calculation: map full structure across radius r and orbital phase φ
+# - Build a 2D field for ω(φ,r) and IC(φ,r) by running a fresh UMCP freeze/compute per radius r.
+# - Physics (working theory): thin ring at radius r (5.5–12 r_g), inclination i=60°, Doppler beaming δ^3,
+#   Schwarzschild redshift g^3, Newtonian β ≈ sqrt(r_g/r). No Kerr ray‑trace (declared closure).
+# - Charts: two separate figures (no subplots), default matplotlib settings.
+# - Exports: PNGs + a CSV summary per radius + a manifest JSON.
+#
+# NOTE: We keep independent variable as phase φ (not time), honoring your constraint.
+
+import numpy as np, matplotlib.pyplot as plt, math, json, hashlib, time
+import pandas as pd
+
+# ----------------------------
+# Constants & Sgr A*
+# ----------------------------
+G = 6.67430e-11
+c = 299792458.0
+M_sun = 1.98847e30
+M = 4.297e6 * M_sun
+r_g = G*M/c**2
+r_s = 2*r_g
+
+incl = math.radians(60.0)   # Earth angle
+p_beam = 3.0                # intensity ∝ δ^p
+
+# ----------------------------
+# Grids
+# ----------------------------
+Nphi = 4096
+phi = np.linspace(0.0, 2*np.pi, Nphi, endpoint=False)
+r_rg_vals = np.linspace(5.5, 12.0, 28)   # 28 radii between 5.5 and 12 r_g
+
+# Containers
+omega_map = np.zeros((len(r_rg_vals), Nphi), dtype=np.float64)
+IC_map    = np.zeros((len(r_rg_vals), Nphi), dtype=np.float64)
+
+# Per‑radius summaries
+rows = []
+
+# ----------------------------
+# UMCP gates
+# ----------------------------
+stable_max  = 0.038
+watch_max   = 0.30
+critical_ic = 0.30
+
+# ----------------------------
+# Helpers
+# ----------------------------
+def quantile_freeze(x, eps_g=0.05, h_g=0.05):
+    Q01 = np.quantile(x, 0.01)
+    Q99 = np.quantile(x, 0.99)
+    a = Q01 - eps_g*(Q99 - Q01)
+    b = (Q99 - Q01) * (1 + h_g)
+    if b <= 0: b = np.finfo(float).eps
+    return float(a), float(b)
+
+def curvature_circ(xh, K=3):
+    n = len(xh)
+    C = np.zeros(n, dtype=np.float64)
+    for i in range(n):
+        acc = 0.0
+        for k in range(1, K+1):
+            j = (i - k) % n
+            acc += (xh[i] - xh[j])**2
+        C[i] = acc / K
+    return C
+
+def tau_recur(xh, eps_ret=1e-3, max_search=64):
+    n = len(xh)
+    tau = np.zeros(n, dtype=np.float64)
+    for i in range(n):
+        found = False
+        for dt in range(1, max_search+1):
+            j = (i - dt) % n
+            if abs(xh[i] - xh[j]) < eps_ret:
+                tau[i] = dt
+                found = True
+                break
+        if not found:
+            tau[i] = max_search
+    return tau
+
+# ----------------------------
+# Sweep in r and compute invariants per φ
+# ----------------------------
+for idx, r_rg in enumerate(r_rg_vals):
+    r = r_rg * r_g
+    beta = math.sqrt(max(r_g / r, 0.0))
+    beta = min(beta, 0.6)                  # cap for model safety
+    gamma = 1.0 / math.sqrt(1.0 - beta**2)
+    g_gr = math.sqrt(max(1.0 - r_s/r, 1e-12))
+    
+    delta = 1.0 / (gamma * (1.0 - beta * math.sin(incl) * np.cos(phi)))
+    I_obs = (delta**p_beam) * (g_gr**3)
+    
+    # UMCP /freeze per‑radius (contract‑first)
+    a, b = quantile_freeze(I_obs, 0.05, 0.05)
+    y = (I_obs - a) / b
+    x_hat = np.clip(y, 0.0, 1.0)
+    
+    # /compute
+    dy = np.diff(y, append=y[0])           # wrap φ
+    omega = np.abs(dy)
+    F = 1.0 - omega
+    S = -np.log(1.0 - omega + 1e-8)
+    C = curvature_circ(x_hat, K=3)
+    tau_R = tau_recur(x_hat, eps_ret=1e-3, max_search=64)
+    alpha = 1.0
+    IC = F * np.exp(-S) * (1.0 - omega) * np.exp(-alpha * C / (1.0 + tau_R))
+    
+    # Save fields
+    omega_map[idx, :] = omega
+    IC_map[idx, :]    = IC
+    
+    # Regimes
+    stable_mask  = (omega < stable_max) & (F > 0.90) & (S < 0.15) & (C < 0.14)
+    watch_mask   = (~stable_mask) & (omega < watch_max)
+    collapse_mask= (~stable_mask) & (~watch_mask)
+    
+    rows.append({
+        "r_over_rg": float(r_rg),
+        "beta": float(beta),
+        "gamma": float(gamma),
+        "g_gr": float(g_gr),
+        "a": float(a), "b": float(b),
+        "omega_mean": float(omega.mean()),
+        "IC_mean": float(IC.mean()),
+        "stable_frac": float(np.mean(stable_mask)),
+        "watch_frac": float(np.mean(watch_mask)),
+        "collapse_frac": float(np.mean(collapse_mask)),
+        "critical_frac": float(np.mean(IC < critical_ic))
+    })
+
+# ----------------------------
+# Save summary CSV
+# ----------------------------
+df = pd.DataFrame(rows)
+csv_path = "/mnt/data/umcp_sgra_full_structure_summary.csv"
+df.to_csv(csv_path, index=False)
+
+# ----------------------------
+# Render heatmaps (each in its own figure)
+# ----------------------------
+# 1) ω(φ,r)
+fig1, ax1 = plt.subplots(figsize=(11.5, 5.0))
+im1 = ax1.imshow(omega_map, aspect='auto', origin='lower',
+                extent=[0, 2*np.pi, r_rg_vals[0], r_rg_vals[-1]])
+ax1.set_xlabel("orbital phase ϕ (rad)")
+ax1.set_ylabel("ring radius r / r_g")
+ax1.set_title("UMCP cross‑calc: ω(ϕ, r)")
+fig1.colorbar(im1, ax=ax1, fraction=0.046, pad=0.04, label=r"$\omega$")
+omega_map_path = "/mnt/data/umcp_sgra_omega_heatmap.png"
+plt.tight_layout()
+plt.savefig(omega_map_path, dpi=180, bbox_inches="tight")
+plt.close(fig1)
+
+# 2) IC(φ,r)
+fig2, ax2 = plt.subplots(figsize=(11.5, 5.0))
+im2 = ax2.imshow(IC_map, aspect='auto', origin='lower',
+                extent=[0, 2*np.pi, r_rg_vals[0], r_rg_vals[-1]])
+ax2.set_xlabel("orbital phase ϕ (rad)")
+ax2.set_ylabel("ring radius r / r_g")
+ax2.set_title("UMCP cross‑calc: IC(ϕ, r)")
+fig2.colorbar(im2, ax=ax2, fraction=0.046, pad=0.04, label="IC")
+IC_map_path = "/mnt/data/umcp_sgra_IC_heatmap.png"
+plt.tight_layout()
+plt.savefig(IC_map_path, dpi=180, bbox_inches="tight")
+plt.close(fig2)
+
+# ----------------------------
+# Manifest
+# ----------------------------
+def sha256_file(path):
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        h.update(f.read())
+    return h.hexdigest()
+
+manifest = {
+    "meta": {
+        "title": "UMCP/RCFT Sgr A* cross‑calculation — φ×r structure",
+        "created_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "tz": "America/Chicago",
+        "assumptions": {
+            "rcft_working_theory": "thin ring; δ^3 beaming; Schwarzschild g^3; Newtonian β; no Kerr ray‑trace",
+            "incl_deg": 60.0,
+            "p_beam": p_beam,
+            "r_grid_rg": [float(r_rg_vals[0]), float(r_rg_vals[-1]), int(len(r_rg_vals))],
+            "phi_points": int(Nphi)
+        },
+        "gates": {"stable_max": stable_max, "watch_max": watch_max, "critical_ic": critical_ic}
+    },
+    "files": {
+        "omega_heatmap_png": omega_map_path,
+        "IC_heatmap_png": IC_map_path,
+        "summary_csv": csv_path
+    },
+    "sha256": {
+        "omega_heatmap_png": sha256_file(omega_map_path),
+        "IC_heatmap_png": sha256_file(IC_map_path),
+        "summary_csv": sha256_file(csv_path)
+    }
+}
+manifest_path = "/mnt/data/umcp_sgra_crosscalc_manifest.json"
+with open(manifest_path, "w") as f:
+    json.dump(manifest, f, indent=2)
+
+omega_map_path, IC_map_path, csv_path, manifest_path
