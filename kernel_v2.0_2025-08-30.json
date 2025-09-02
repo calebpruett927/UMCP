@@ -1,0 +1,73 @@
+{
+  "meta": {
+    "version": "UMCP Kernel v2.0",
+    "date": "2025-08-30",
+    "timezone": "America/Chicago"
+  },
+  "contract": {
+    "mode": "global_fixed",
+    "a": "frozen>0",
+    "b": "frozen>0",
+    "epsilon": 1e-08
+  },
+  "policies": {
+    "omega": "pre_clip",
+    "near_wall_pivot": "post_clip+guard",
+    "oor": "clip_and_flag",
+    "K": 3,
+    "alpha": 1.0,
+    "tau_R": {
+      "k": 2.5,
+      "emin": 0.0005,
+      "emax": 0.07,
+      "L": 2,
+      "H_max": 600,
+      "ema_lambda": 0.2
+    },
+    "lambda_wall": 0.0,
+    "aggregator": "geometric_mean"
+  },
+  "invariants": {
+    "y": "y=(x-a)/b",
+    "xhat": "clip(y,0,1)",
+    "omega": "abs(diff(y))  # or abs(diff(xhat)) under pivot",
+    "F": "1-omega",
+    "S": "-ln(1-omega+epsilon)",
+    "C": "mean_{k=1..K} (xhat_t-xhat_{t-k})^2",
+    "tau_R": "min{\u0394t>0: |xhat_t-xhat_{t-\u0394t}|<\u03b5_ret} with debounce L, horizon H_max",
+    "IC": "F*exp(-S)*(1-omega)*exp(-alpha*C/(1+tau_R))",
+    "kappa": "ln(IC)",
+    "U": "C/(1+tau_R)"
+  },
+  "sensitivities": {
+    "d_kappa_d_omega": "-[2/(1-omega) + 1/(1-omega+epsilon)]",
+    "d_kappa_d_C": "-alpha/(1+tau_R)",
+    "d_kappa_d_tau_R": "alpha*C/(1+tau_R)^2"
+  },
+  "weld": {
+    "continuity": {
+      "kappa": "tol_W",
+      "U": "tol_T"
+    }
+  },
+  "regimes": {
+    "stable": {
+      "omega": "<0.038",
+      "F": ">0.90",
+      "S": "<0.15",
+      "C": "<0.14"
+    },
+    "watch": {
+      "omega": "[0.038,0.30)"
+    },
+    "collapse": {
+      "omega": ">=0.30",
+      "critical_if": "IC<0.30"
+    }
+  },
+  "Q_constraints": {
+    "convention": "column",
+    "onesT_Q": 0,
+    "offdiag": ">=0"
+  }
+}

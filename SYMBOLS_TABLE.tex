@@ -1,0 +1,24 @@
+
+\begin{table}[h]
+\caption{Key symbols and definitions.}
+\begin{tabular}{ll}
+\toprule
+Symbol & Meaning \\
+\midrule
+$x$ & raw signal (per channel) \\
+$y=(x-a)/b$ & affine-normalized signal, $b>0$ \\
+$\hat x=\mathrm{clip}(y,0,1)$ & clipped signal in $[0,1]$ \\
+$\omega$ & drift, per declared policy \\
+$F=1-\omega$ & fidelity \\
+$S=-\ln(1-\omega+\varepsilon)$ & entropy (with floor $\varepsilon>0$) \\
+$C\ge 0$ & curvature/regularity penalty (convex operator) \\
+$\tau_R\ge 0$ & return delay (in-law semantics) \\
+$U=C/(1+\tau_R)$ & payload entering integrity \\
+$\mathrm{IC}>0$ & integrity \\
+$\kappa=\ln \mathrm{IC}$ & log-integrity (weld invariant) \\
+$\Gamma(\omega)$ & face coefficient in transport \\
+$Q$ & CTMC generator, column convention ($\mathbf{1}^\top Q=0$) \\
+$\theta=0.35$ & Equator Fidelity threshold (Critical binding) \\
+\bottomrule
+\end{tabular}
+\end{table}

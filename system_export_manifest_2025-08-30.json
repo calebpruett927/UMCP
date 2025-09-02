@@ -1,0 +1,67 @@
+[
+  {
+    "filename": "SYSTEM_README_2025-08-30.md",
+    "bytes": 553,
+    "sha256": "9c7e651275016a678577465a2018115c53faf9a492662b72b90d36945114cedd"
+  },
+  {
+    "filename": "kernel_v2.0_2025-08-30.md",
+    "bytes": 1812,
+    "sha256": "84bfba738a93326b4bf5a33be9a588b9c7c46a22ccca2463b6e4df7b88501f70"
+  },
+  {
+    "filename": "kernel_v2.0_2025-08-30.json",
+    "bytes": 1619,
+    "sha256": "671c3f861fe4228b113aca9ee2a6802f5056a7b6716d90d64a4ac559093fb7e4"
+  },
+  {
+    "filename": "freeze_contract.json",
+    "bytes": 4421,
+    "sha256": "99b4e0e7836543d9ec47355d613a441f4b63f87c532037929ce42aa639a25374"
+  },
+  {
+    "filename": "tolerances.json",
+    "bytes": 81,
+    "sha256": "fd066bc5cf3665cbca8aaacff7266b2122984407e93f94851856d537e647aecd"
+  },
+  {
+    "filename": "generator.yaml",
+    "bytes": 201,
+    "sha256": "ad2b73ddf2a95bfaa0f7bffcd13c98bf15d17994370df11e1981dc2637c81ad3"
+  },
+  {
+    "filename": "datasets.yaml",
+    "bytes": 1277,
+    "sha256": "c678b3fd855a63b3f61aa55fb604819416f48857bde08c6ef7c26c48fb117b13"
+  },
+  {
+    "filename": "BandPack.yaml",
+    "bytes": 463,
+    "sha256": "48bcf4dfef8a412e8cfb068ae200c371ababa4af7f5146749891ae299278aa03"
+  },
+  {
+    "filename": "compat_lane.yaml",
+    "bytes": 955,
+    "sha256": "a5c21b093a56757c62d10db9a394902e38ea5871e17c56f2000684c799146260"
+  },
+  {
+    "filename": "collapse_validate.py",
+    "bytes": 5337,
+    "sha256": "e3e1dc9ba2b5d56f4c547f30f601c970d46fcac602a6285a12bb8287d96ad722"
+  },
+  {
+    "filename": "rcft_full_run.csv",
+    "bytes": 2988527,
+    "sha256": "00a4b8b295105c8d2431caeb3e2236c38f31575da0db653490e4f9a69a5e7508"
+  },
+  {
+    "filename": "rcft_full_run.json",
+    "bytes": 3000,
+    "sha256": "51a4a3e94a96f4a661b615bbc9040eb58811659d549cc32dc12e6ddc60f31bee"
+  },
+  {
+    "filename": "rcft_full_run.md",
+    "bytes": 943,
+    "sha256": "a246f4dd545496bc1db48142ff25c6b23f9e5dfac17f5b43b34a7c1172c1d7bc"
+  }
+]

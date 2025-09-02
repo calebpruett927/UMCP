@@ -1,0 +1,19 @@
+\begin{table}[h]
+\caption{Global contract keys (compiled manifest snapshot).}
+\begin{tabular}{l l}
+\hline
+norm\_mode & global_fixed \\
+omega\_policy & pre_clip \\
+ic\_form & normal_with_exact_near_wall \\
+p & 3 \\
+epsilon & 1e-08 \\
+alpha & 1 \\
+C\_form & bounded_second_difference_energy, face=clipped, K=3 \\
+Q\_convention & column ($\mathbf{1}^\top Q=0$) \\
+integrator & uniformization (step=auto) \\
+tolerances & tol\_W=1e-12,\; tol\_T=1e-09 \\
+timebase & TZ=America/Chicago,\; cadence=declared,\; field=t \\
+equator\_binding & $\theta=0.35$ (Critical overlay) \\
+\hline
+\end{tabular}
+\end{table}

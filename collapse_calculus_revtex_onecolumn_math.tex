@@ -1,0 +1,217 @@
+
+\documentclass[onecolumn,amsmath,amssymb,aps]{revtex4-2}
+
+% ===== Packages =====
+\usepackage{bm}
+\usepackage{mathtools}
+\usepackage{microtype}
+\usepackage{physics}
+\usepackage{hyperref}
+\usepackage{booktabs}
+\usepackage{enumitem}
+\usepackage{lmodern}
+\usepackage[T1]{fontenc}
+
+% ===== Macros =====
+\newcommand{\eps}{\varepsilon}
+\newcommand{\kappaL}{\kappa}
+\newcommand{\IC}{\mathrm{IC}}
+\newcommand{\TauR}{\tau_\mathrm{R}}
+\newcommand{\FF}{F}
+\newcommand{\om}{\omega}
+\newcommand{\Curv}{C}
+\newcommand{\Uvar}{U}
+\newcommand{\alp}{\alpha}
+\newcommand{\one}{\mathbf{1}}
+\newcommand{\RR}{\mathbb{R}}
+\newcommand{\DD}{\mathcal{D}}
+\newcommand{\EE}{\mathbb{E}}
+\newcommand{\Var}{\mathrm{Var}}
+\newcommand{\D}{\Delta}
+\newcommand{\sign}{\mathrm{sign}}
+
+\newcommand{\thetaCrit}{0.35}
+
+\begin{document}
+
+\title{Collapse Calculus (One Column): Rigorous Derivations, Weld Identities, and Equator Binding}
+\author{Clement (UMCP/GCD)}
+\affiliation{Universal Mathematics \& Collapse Platform}
+\date{2025-09-02 (CDT)}
+\preprint{Version 2.0; REVTeX 4.2; Equator binding $\theta=\thetaCrit$}
+
+\begin{abstract}
+We provide a rigorous development of the Collapse Calculus. Once a freeze contract is declared, the observables $(\om,\FF,S,\Curv,\TauR,\IC,\kappaL)$ are invariant under unit changes, and $\kappaL$ obeys exact transport identities for two integrity faces. Closed-form weld equations follow from $\kappaL$-continuity. We prove unit-change invariance, uniqueness and monotonicity of weld solves, near-wall asymptotics for the exact face, and error bounds for the face-aware piecewise-secant transport. We state a Lyapunov-style inequality for $\kappaL$ under convex $\Curv$ with bounded delay growth and formalize the CTMC generator convention. The Equator Fidelity threshold is bound to the Critical overlay at $\theta=\thetaCrit$.
+\end{abstract}
+
+\maketitle
+
+\section*{Front-Matter Meta and Symbols}
+\begin{center}
+\input{MANIFEST_TABLE.tex}
+\input{CHANNELS_AB_TABLE.tex}
+\input{SYMBOLS_TABLE.tex}
+\end{center}
+
+\section{Contract and Domains}
+For each channel, fix the affine map and clipping
+\begin{equation}
+y=\frac{x-a}{b},\quad b>0,\qquad \hat x=\Pi_{[0,1]}(y):=\max\{0,\min\{1,y\}\}.
+\label{eq:affine}
+\end{equation}
+Declare the drift policy, integrity face, near-wall handling, curvature operator (convex), return-delay semantics (in-law), generator convention, integrator, and tolerances. Under a unit transform $x'=\alpha x+\beta$ with $\alpha>0$ we update
+$(a',b')=(\alpha a+\beta,\alpha b)$.
+\begin{definition}[Invariant spine]
+Given the contract, define per time index $t\in\mathbb{Z}$:
+$\FF=1-\om$, $S=-\ln(1-\om+\eps)$ with fixed $\eps>0$, $\Curv\ge 0$ (convex operator), $\TauR\ge 0$ (minimal re-entry lag), $\IC>0$, $\kappaL=\ln \IC$, and $ \Uvar=\Curv/(1+\TauR)$.
+\end{definition}
+
+\section{Drift Policies and Invariance}\label{sec:drift}
+\begin{definition}[Certified policies]
+(a) \emph{Pre-clip differencing:} $\om_t=\min\{1,\abs{y_t-y_{t-1}}\}$;
+(b) \emph{Post-clip + wall-guard:} $\om_t=\abs{\hat x_t-\hat x_{t-1}}$ with a monotone guard.
+\end{definition}
+\begin{lemma}[Unit-change invariance of pre-clip]\label{lem:unit}
+Let $x'=\alpha x+\beta$, $(a',b')=(\alpha a+\beta,\alpha b)$. Then $y'=(x'-a')/b'=y$, hence $\om'_t=\min\{1,\abs{y'_t-y'_{t-1}}\}=\om_t$. Consequently $F,S$ and any label depending on $\om$ via the pre-clip policy are invariant.
+\end{lemma}
+\begin{proof}
+Immediate from linearity.
+\end{proof}
+
+\section{Integrity Faces and Transport}\label{sec:faces}
+\begin{definition}[Faces]
+For $\alp>0$:
+\begin{align}
+\IC_{\mathrm{NF}}&=(1-\om)^p e^{-\alp \Uvar},\quad p=3,\qquad
+\kappaL_{\mathrm{NF}}=p\ln(1-\om)-\alp \Uvar, \label{eq:NF}\\
+\IC_{\mathrm{EX}}&=(1-\om)^2(1-\om+\eps) e^{-\alp \Uvar},\quad
+\kappaL_{\mathrm{EX}}=2\ln(1-\om)+\ln(1-\om+\eps)-\alp \Uvar. \label{eq:EX}
+\end{align}
+\end{definition}
+
+\begin{theorem}[Transport identity]\label{thm:transport}
+For the normal face \eqref{eq:NF},
+\begin{equation}
+\dot{\kappaL}= -\frac{p}{1-\om}\dot{\om}
+-\frac{\alp}{1+\TauR}\dot{\Curv}
++\frac{\alp \Curv}{(1+\TauR)^2}\dot{\TauR},
+\end{equation}
+with the discrete forward-difference analog obtained by replacing derivatives by forward differences. The exact face follows by differentiating \eqref{eq:EX}.
+\end{theorem}
+\begin{proof}
+Chain rule on \eqref{eq:NF} with $\Uvar=\Curv/(1+\TauR)$.
+\end{proof}
+
+\section{Weld Identities, Uniqueness, and Near-Wall Asymptotics}\label{sec:welds}
+\begin{theorem}[Closed-form welds]\label{thm:weld}
+A weld at $t^\ast$ is valid iff $\kappaL$ is continuous. Equating \eqref{eq:NF} before/after yields
+\begin{equation}\label{eq:wNF}
+p\ln\frac{1-\om_2}{1-\om_1}=\alp\!\left(\frac{\Curv_2}{1+\TauR_2}-\frac{\Curv_1}{1+\TauR_1}\right),
+\end{equation}
+and for \eqref{eq:EX} we obtain
+\begin{equation}\label{eq:wEX}
+2\ln\frac{1-\om_2}{1-\om_1}+\ln\frac{1-\om_2+\eps}{1-\om_1+\eps}
+=\alp\!\left(\frac{\Curv_2}{1+\TauR_2}-\frac{\Curv_1}{1+\TauR_1}\right).
+\end{equation}
+\end{theorem}
+\begin{proposition}[Monotonicity and uniqueness]\label{prop:mono}
+Fix $(\om_1,\Curv_1,\TauR_1)$ and $(\Curv_2,\TauR_2)$; treat $\om_2$ as unknown. The left-hand sides of \eqref{eq:wNF} and \eqref{eq:wEX} are strictly decreasing in $\om_2\in[0,1)$, hence each equation admits a unique solution $\om_2$.
+\end{proposition}
+\begin{proof}
+For the NF case, derivative w.r.t.\ $\om_2$ is $-\frac{p}{1-\om_2}<0$. For EX, derivative is $-\frac{2}{1-\om_2}-\frac{1}{1-\om_2+\eps}<0$.
+\end{proof}
+
+\begin{lemma}[Near-wall asymptotics]\label{lem:wall}
+Let $u=1-\om\downarrow 0$. Then
+$\IC_{\mathrm{NF}}\sim u^{p}$ and
+$\IC_{\mathrm{EX}}\sim u^{2}(u+\eps)=u^{3}+\eps u^{2}$, so the EX face regularizes the wall while matching NF away from $\order{\eps}$.
+\end{lemma}
+
+\section{Secant Transport and Error Bounds}\label{sec:secant}
+\begin{definition}[Face coefficient]
+\begin{equation}
+\Gamma(\om)=
+\begin{cases}
+\dfrac{p}{1-\om}, & \text{NF},\\[2mm]
+\dfrac{2}{1-\om}+\dfrac{1}{1-\om+\eps}, & \text{EX}.
+\end{cases}
+\end{equation}
+\end{definition}
+\begin{definition}[Piecewise-secant update]
+Over one step,
+\begin{equation}
+\D \Uvar = -\frac{1}{\alp}\,\overline{\Gamma}\,\D \om,\qquad
+\overline{\Gamma}=
+\begin{cases}
+\Gamma(\om_t), & \D\om=0,\\[1mm]
+\dfrac{\Gamma(\om_{t+1})-\Gamma(\om_t)}{\om_{t+1}-\om_t}, & \text{otherwise.}
+\end{cases}
+\end{equation}
+\end{definition}
+\begin{theorem}[Weld-consistent step; error order]\label{thm:secant}
+The secant update preserves $\kappaL$ up to ${\cal O}(\D\om\,\D \Uvar)$ and eliminates the ${\cal O}((\D\om)^2)$ bias of a purely tangent advance. If $\Gamma$ is $C^1$ on the step, the residual in $\kappaL$ is ${\cal O}((\D\om)^3)$.
+\end{theorem}
+\begin{proof}[Sketch]
+Apply the mean-value theorem to expand $\ln(1-\om)$ along the step and match first-order terms exactly; the secant matches the integral $\int \Gamma(\om)\dd\om$ to second order.
+\end{proof}
+
+\section{Aggregation and Scale Neutrality}\label{sec:agg}
+\begin{proposition}[Geometric aggregation]
+For fields $i=1,\dots,m$ with $\kappaL_i$, define $\kappaL_\mathrm{agg}=\frac1m\sum_i \kappaL_i$ (equivalently, $\IC_\mathrm{agg}=(\prod_i \IC_i)^{1/m}$). Then: (i) scale neutrality across fields; (ii) monotonicity in each $\IC_i$; (iii) log-convexity if each $\IC_i$ is log-convex in its arguments.
+\end{proposition}
+
+\section{Lyapunov-Style Bound}\label{sec:lyap}
+Assume $\Curv$ is convex and Lipschitz in $\hat x$, and $\TauR$ has bounded one-step growth: $\D \TauR \le \rho(1+\TauR)$ for some $\rho\ge 0$. Then for the NF face,
+\begin{equation}
+\D \kappaL \le -\overline{\Gamma}\,\D \om - \frac{\alp}{1+\TauR}\D \Curv + \frac{\alp \Curv}{(1+\TauR)^2}\rho(1+\TauR),
+\end{equation}
+so for small $\rho$ and modest curvature growth, $\kappaL$ is nonincreasing on average, providing a Lyapunov-style certificate away from heavy forcing.
+
+\section{Return-Delay in Law}\label{sec:tau}
+Let $T$ denote the random return time to an $\eta$-ball in signal space. The discrete estimator sets $\TauR_t=\min\{\Delta>0:\abs{\hat x_{t-\Delta}-\hat x_t}<\eta\}$ up to a horizon $H_{\max}$. If $T$ admits a discrete hazard $h(k)=\Pr(T=k\mid T\ge k)$ then
+\(
+\EE[T]=\sum_{k\ge 1}\prod_{j<k}(1-h(j)).
+\)
+Forward-difference updates of $\TauR$ approximate the continuous hazard dynamics entering Theorem~\ref{thm:transport}. Types $\infty_{\mathrm{rec}}$ (no return within horizon) are propagated into $\Uvar$ and $\kappaL$.
+
+\section{Regimes and Generator}\label{sec:regime}
+Gates: Stable ($\om<0.038$, $\FF>0.90$, $S<0.15$, $\Curv<0.14$); Watch ($0.038\le \om<0.30$); Collapse ($\om\ge 0.30$); Critical overlay if $\IC<0.30$.
+For regime probabilities $\pi$, use the column-convention CTMC
+$\dot\pi=Q\pi$, $\one^\top Q=0$, $Q_{ij}\ge 0$ for $i\ne j$. Uniformization with rate $\lambda\ge \max_i -Q_{ii}$ yields
+$\pi(t+\D t)=\sum_{n=0}^\infty e^{-\lambda \D t}\frac{(\lambda \D t)^n}{n!} P^n \pi(t)$ with $P=I+Q/\lambda$, ensuring positivity.
+
+\section{Equator Fidelity and Binding}\label{sec:eq}
+A symbolic excitation is real iff it returns to the equator $E$ with sufficient integrity. We bind
+\(
+\theta\equiv \theta_\mathrm{crit}=\thetaCrit.
+\)
+An act is admitted only if: (i) the weld passes; (ii) equator return holds; (iii) $\IC>\theta$. The act records a manifest snapshot, weld residuals, and a hash of the audit row.
+
+\section{Conformance Tests}
+(i) Contract invariance under unit changes (Lemma~\ref{lem:unit}); (ii) Weld identities (Theorem~\ref{thm:weld}) with residuals; (iii) Transport check (Theorem~\ref{thm:transport}) in forward differences, typed; (iv) Regime reproducibility from audit rows; (v) Optional CTMC mass conservation $\one^\top \pi(t)=1$.
+
+\appendix
+
+\section{Discrete Transport (Forward-Difference Form)}
+Let $\D f_t=f_{t+1}-f_t$. For NF,
+\begin{equation}
+\D \kappaL_t + \Gamma(\om_t)\,\D \om_t + \frac{\alp}{1+\TauR_t}\,\D \Curv_t - \frac{\alp \Curv_t}{(1+\TauR_t)^2}\,\D \TauR_t = r_t,
+\end{equation}
+with residual $r_t=\order{(\D\om_t)^2,\,\D\om_t\,\D\TauR_t,\,\D\om_t\,\D\Curv_t}$;
+the secant update cancels the second-order term (Theorem~\ref{thm:secant}).
+
+\section{Typed Arithmetic Near the Wall}
+If $1-\om+\eps\le 0$, we set $S=\bot_{\mathrm{oor}}$ and propagate types to $\IC,\kappaL$. For $\om\approx 1$, compute $\ln(1-\om+\eps)$ with \texttt{log1p} for numerical stability.
+
+\section{Manifest Schema (Full)}
+\begingroup\small\begin{verbatim}
+norm_mode, a, b, omega_policy, ic_form, p, epsilon, alpha,
+C_form (+ hyperparams, signal face), K,
+tauR: {lambda, k, eps_min, eps_max, L, H_max},
+wall_guard: {lambda_wall, forget_rho, guard_mode},
+Q_convention, integrator (+ step), tolerances (tol_W, tol_T),
+timebase (TZ, cadence), data slice, seeds, versions,
+equator_binding: {theta = 0.35, bound_to = Critical}.
+\end{verbatim}\endgroup
+
+\end{document}

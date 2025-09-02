@@ -1,0 +1,16 @@
+WELD TEST GUIDE (Collapse Calculus)
+
+1) Contract invariance under unit-change:
+   - Apply x' = α x + β, update (a',b') = (α a + β, α b).
+   - Recompute labels; verify identical pre/post weld.
+
+2) Face-aware weld identity at t*:
+   - Normal face: p*log((1-ω2)/(1-ω1)) = α*(C2/(1+τR2) - C1/(1+τR1)).
+   - Exact face: 2*log(...) + log((1-ω2+ε)/(1-ω1+ε)) = α*(...).
+
+3) Transport check (discrete):
+   - κ_{t+1}-κ_t + Γ(ω_t)*(ω_{t+1}-ω_t) + α/(1+τR_t)*(C_{t+1}-C_t)
+     - α*C_t/(1+τR_t)^2*(τR_{t+1}-τR_t) ≈ 0 within tol_T.
+
+4) Tolerances:
+   - |Δκ| ≤ tol_W, |ΔU| ≤ tol_T. Use log1p near the wall; secant Γ across pivots.
