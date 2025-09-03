@@ -1,0 +1,88 @@
+# render_report.py — compute aggregates, regime mix, weld summary into render/report.md
+from __future__ import annotations
+import csv, json, argparse
+from pathlib import Path
+from statistics import mean
+
+def safe_mean(vals):
+    xs = [v for v in vals if isinstance(v, (int,float))]
+    return (sum(xs)/len(xs)) if xs else None
+
+def col(list_of_dicts, key):
+    out = []
+    for r in list_of_dicts:
+        v = r.get(key)
+        if isinstance(v, str):
+            try:
+                v = float(v)
+            except:
+                v = None
+        out.append(v)
+    return out
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--root", default=str(Path(__file__).resolve().parents[1]))
+    ap.add_argument("--audit", default="data/audit.csv")
+    ap.add_argument("--regimes", default="data/audit_regimes.csv")
+    ap.add_argument("--weld", default="weld/weld_report.json")
+    ap.add_argument("--out", default="render/report.md")
+    args = ap.parse_args()
+
+    root = Path(args.root)
+    audit_path = root / args.audit
+    regimes_path = root / args.regimes
+    weld_path = root / args.weld
+    out_path = root / args.out
+
+    # read audit
+    rows = []
+    with open(audit_path, newline="", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        rows = list(reader)
+
+    means = {}
+    for k in ["omega","F","S","C","tau_R","IC","kappa","U"]:
+        means[k] = safe_mean(col(rows, k))
+
+    # regime mix
+    mix = {}
+    if regimes_path.exists():
+        with open(regimes_path, newline="", encoding="utf-8") as f:
+            rr = list(csv.DictReader(f))
+            for r in rr:
+                lab = r.get("regime","unknown")
+                mix[lab] = mix.get(lab, 0) + 1
+        total = sum(mix.values()) or 1
+        for k in list(mix.keys()):
+            mix[k] = {"count": mix[k], "pct": mix[k]/total}
+    else:
+        mix = {}
+
+    weld_summary = {}
+    if weld_path.exists():
+        weld_summary = json.loads(weld_path.read_text(encoding="utf-8")).get("summary", {})
+
+    md = ["# UMCP Run Report",
+          f"Generated: {__import__('datetime').datetime.now().isoformat(timespec='seconds')} (America/Chicago)",
+          "",
+          "## Aggregates (means)"]
+    for k,v in means.items():
+        md.append(f"- {k}: {v if v is not None else 'n/a'}")
+    md.append("")
+    md.append("## Regime mix")
+    if mix:
+        for k, v in mix.items():
+            md.append(f"- {k}: {v['count']} ({v['pct']:.2%})")
+    else:
+        md.append("- (regimes file not found)")
+    md.append("")
+    md.append("## Weld summary")
+    for k in ["m","eps_kappa","cum_kappa_jump","bound","pass"]:
+        md.append(f"- {k}: {weld_summary.get(k, 'n/a')}")
+    md.append("")
+    out_path.write_text("\n".join(md), encoding="utf-8")
+    print(f"Wrote {out_path}")
+
+if __name__ == "__main__":
+    main()
