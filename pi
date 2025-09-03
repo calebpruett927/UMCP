@@ -1,0 +1,33 @@
+# run_cli.py — orchestrate the standard flow: regime gate, weld, render, export manifest
+from __future__ import annotations
+import argparse, subprocess, sys
+from pathlib import Path
+
+def run(cmd, cwd: Path):
+    print("+", " ".join(cmd))
+    cp = subprocess.run(cmd, cwd=str(cwd))
+    if cp.returncode != 0:
+        sys.exit(cp.returncode)
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--root", default=str(Path(__file__).resolve().parents[1]))
+    ap.add_argument("--skip-weld", action="store_true")
+    ap.add_argument("--skip-regime", action="store_true")
+    ap.add_argument("--skip-render", action="store_true")
+    ap.add_argument("--skip-manifest", action="store_true")
+    args = ap.parse_args()
+    root = Path(args.root)
+    tools = root / "tools"
+
+    if not args.skip_regime:
+        run([sys.executable, str(tools / "regime_gate.py"), "--root", str(root)], cwd=root)
+    if not args.skip_weld:
+        run([sys.executable, str(tools / "weld_check.py"), "--root", str(root)], cwd=root)
+    if not args.skip_render:
+        run([sys.executable, str(tools / "render_report.py"), "--root", str(root)], cwd=root)
+    if not args.skip_manifest:
+        run([sys.executable, str(tools / "make_manifest.py"), "--root", str(root)], cwd=root)
+
+if __name__ == "__main__":
+    main()
