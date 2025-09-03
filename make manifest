@@ -1,0 +1,49 @@
+# make_manifest.py — rebuild export/MANIFEST.json and SHA256SUMS.txt
+from __future__ import annotations
+import argparse, json, os
+from pathlib import Path
+from common import sha256_file, role_for_path
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--root", default=str(Path(__file__).resolve().parents[1]), help="Bundle root")
+    args = ap.parse_args()
+    root = Path(args.root)
+    export = root / "export"
+    export.mkdir(exist_ok=True, parents=True)
+
+    artifacts = []
+    for p in sorted(root.rglob("*")):
+        if p.is_dir(): continue
+        # exclude MANIFEST.json itself to avoid recursion
+        if p == export / "MANIFEST.json": continue
+        rel = p.relative_to(root).as_posix()
+        h = sha256_file(p)
+        artifacts.append({
+            "name": p.name,
+            "path": rel,
+            "sha256": h,
+            "bytes": p.stat().st_size,
+            "role": role_for_path(rel),
+        })
+
+    manifest = {
+        "run_id": f"rebuild-{os.path.basename(root)}",
+        "created_at": __import__("datetime").datetime.now().isoformat(timespec="seconds"),
+        "hashing": "sha256",
+        "spec_version": 1,
+        "artifacts": artifacts,
+        "weld_summary": None
+    }
+    man_path = export / "MANIFEST.json"
+    man_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    man_sha = sha256_file(man_path)
+
+    lines = [f"{a['sha256']}  {a['path']}\n" for a in artifacts]
+    lines.append(f"{man_sha}  export/MANIFEST.json\n")
+    (export / "SHA256SUMS.txt").write_text("".join(lines), encoding="utf-8")
+
+    print(f"Wrote {man_path} (sha256={man_sha}) with {len(artifacts)} artifacts.")
+
+if __name__ == "__main__":
+    main()
