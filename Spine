@@ -1,0 +1,7 @@
+/spec/        # weld spec, proof pack, MANIFEST.schema.json
+/freeze/      # symbol-first freeze.json (bind at release)
+/tools/       # manifest, regime, weld, parity, render (the Python helpers)
+/data/        # tiny fixtures only (big CSVs -> Releases or LFS)
+/weld/        # weld_report.json
+/render/      # report.md, parity_certificate.json
+/export/      # MANIFEST.json, SHA256SUMS.txt
