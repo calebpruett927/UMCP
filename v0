@@ -1,0 +1,65 @@
+# common.py — shared utilities for UMCP bundle
+from __future__ import annotations
+import json, hashlib, re, math
+from pathlib import Path
+from typing import Dict, Any, Tuple, Iterable
+
+def sha256_file(path: Path) -> str:
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(65536), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+def load_json(path: Path) -> dict:
+    return json.loads(path.read_text(encoding="utf-8"))
+
+def write_json(path: Path, data: dict) -> str:
+    s = json.dumps(data, indent=2, ensure_ascii=False)
+    path.write_text(s, encoding="utf-8")
+    return sha256_file(path)
+
+def try_float(x):
+    try:
+        if isinstance(x, (int, float)):
+            return float(x)
+        if isinstance(x, str):
+            # strip ${...} placeholders
+            if x.strip().startswith("${"):
+                return None
+            return float(x)
+        return None
+    except Exception:
+        return None
+
+def numeric_or_none(d: dict, key: str):
+    v = d.get(key, None)
+    return try_float(v)
+
+def get_tolerances(freeze: dict, spec_yaml_text: str | None = None) -> dict:
+    tol = freeze.get("tolerances", {})
+    out = {}
+    for k in ["eps_kappa", "eps_U_abs", "eps_U_rel", "eps_C_abs", "eps_tau_abs"]:
+        out[k] = numeric_or_none(tol, k)
+    return out
+
+def get_gates(freeze: dict) -> dict:
+    gates = freeze.get("gates", {})
+    return {
+        "theta_S": numeric_or_none(gates, "theta_S"),
+        "theta_C": numeric_or_none(gates, "theta_C"),
+        "theta_IC": numeric_or_none(gates, "theta_IC"),
+    }
+
+def role_for_path(rel: str) -> str:
+    if rel.endswith("/freeze.json") or rel == "freeze/freeze.json":
+        return "freeze"
+    if rel.endswith("/audit.csv") or rel == "data/audit.csv":
+        return "audit"
+    if rel.endswith("/audit_regimes.csv") or rel == "data/audit_regimes.csv":
+        return "regimes"
+    if rel.endswith("/weld_report.json") or rel == "weld/weld_report.json":
+        return "weld_report"
+    if rel.endswith(".md") and "Proof_Pack" in rel:
+        return "proof_pack"
+    return "other"
