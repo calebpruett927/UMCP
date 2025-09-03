@@ -1,0 +1,34 @@
+name: build-validate
+on:
+  push: { branches: ["**"] }
+  pull_request: {}
+  workflow_dispatch: {}
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+      - name: Smoke fixtures
+        run: |
+          python tools/regime_gate.py
+          python tools/weld_check.py
+          python tools/render_report.py
+          python tools/make_manifest.py
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: umcp-artifacts
+          path: |
+            render/report.md
+            weld/weld_report.json
+            export/MANIFEST.json
+            export/SHA256SUMS.txt
+      - name: On tag, create release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            export/MANIFEST.json
+            export/SHA256SUMS.txt
