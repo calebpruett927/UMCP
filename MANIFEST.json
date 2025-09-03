@@ -1,0 +1,78 @@
+{
+  "run_id": "umcp-run-20250903_211007",
+  "created_at": "2025-09-03T21:10:07",
+  "hashing": "sha256",
+  "spec_version": 1,
+  "artifacts": [
+    {
+      "name": "UMCP_Weld_Spec_v1.yaml",
+      "path": "spec/UMCP_Weld_Spec_v1.yaml",
+      "sha256": "afa33a36eb5ed98a84daa427bc47c9de198d7e9b5b82a780a4569cbfcb5e6550",
+      "bytes": 1791,
+      "role": "other"
+    },
+    {
+      "name": "UMCP_RCFT_Proof_Pack_v1.md",
+      "path": "spec/UMCP_RCFT_Proof_Pack_v1.md",
+      "sha256": "19da607e9afc2af44e7c348009984736f39a3baed4824e1fd19e43398ffca42a",
+      "bytes": 159,
+      "role": "proof_pack"
+    },
+    {
+      "name": "MANIFEST.schema.json",
+      "path": "spec/MANIFEST.schema.json",
+      "sha256": "00521bbb2438c5931c7940f4703dca1ddbe023be1af29fe05c8a0f16b5671008",
+      "bytes": 1701,
+      "role": "other"
+    },
+    {
+      "name": "freeze.json",
+      "path": "freeze/freeze.json",
+      "sha256": "760dbc519ec41159fd351812de5759e876af84d5d4835264cbb3dff971649d33",
+      "bytes": 628,
+      "role": "freeze"
+    },
+    {
+      "name": "input.csv",
+      "path": "data/input.csv",
+      "sha256": "33cb79b8b1544de8de93cf25e10847b7d2239b6965da3bbdd2f11c31e437d81a",
+      "bytes": 27,
+      "role": "other"
+    },
+    {
+      "name": "audit.csv",
+      "path": "data/audit.csv",
+      "sha256": "9c2a192f6ac8a378c230c1dcfcb71b6109d79f9331a14b84c700e907ff760d47",
+      "bytes": 31,
+      "role": "audit"
+    },
+    {
+      "name": "audit_regimes.csv",
+      "path": "data/audit_regimes.csv",
+      "sha256": "e6082e557330abbf946d27214fd821e9ce02a49c920b4e0e0a6b2ad40b02e69c",
+      "bytes": 9,
+      "role": "regimes"
+    },
+    {
+      "name": "weld_report.json",
+      "path": "weld/weld_report.json",
+      "sha256": "9138d1547a53d08f18241849b6e6982ca9cee8ef65eecb78537bc6ec6a029a19",
+      "bytes": 311,
+      "role": "weld_report"
+    },
+    {
+      "name": "report.md",
+      "path": "render/report.md",
+      "sha256": "775465c9622658c664ddc3f91aaeec7e876337495507918bf131f9df2c2faf93",
+      "bytes": 392,
+      "role": "other"
+    }
+  ],
+  "weld_summary": {
+    "m": 0,
+    "eps_kappa": "${\u03b5\u03ba}",
+    "cum_kappa_jump": 0.0,
+    "bound": "m*eps_kappa",
+    "pass": true
+  }
+}

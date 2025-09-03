@@ -1,0 +1,30 @@
+{
+  "status": "unfrozen",
+  "created_at": "2025-09-03T21:10:07",
+  "timezone": "America/Chicago",
+  "guard_bands": {
+    "low": "${gL}",
+    "high": "${gU}"
+  },
+  "parameters": {
+    "a": "${a}",
+    "b": "${b}"
+  },
+  "timegrid": {
+    "mode": "fixed",
+    "N": "${N}",
+    "timestamps_sha256": "${timestamps_sha256}"
+  },
+  "gates": {
+    "theta_S": "${\u03b8S}",
+    "theta_C": "${\u03b8C}",
+    "theta_IC": "${\u03b8IC}"
+  },
+  "tolerances": {
+    "eps_kappa": "${\u03b5\u03ba}",
+    "eps_U_abs": "${\u03b5U_abs}",
+    "eps_U_rel": "${\u03b5U_rel}",
+    "eps_C_abs": "${\u03b5C}",
+    "eps_tau_abs": "${\u03b5\u03c4}"
+  }
+}

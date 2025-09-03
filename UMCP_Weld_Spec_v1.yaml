@@ -1,0 +1,57 @@
+# UMCP Weld Spec v1
+# Created: 2025-09-03T21:10:07 (TZ=America/Chicago)
+version: 1
+timegrid:
+  mode: fixed
+  N: null
+  t0: null
+  dt: null
+  timestamps_sha256: null
+  transport:
+    mapping_id: null
+    weighted_audit: true
+identities:
+  omega: drift
+  F: "1 - omega"
+  S: "-ln(F + eps)"
+  C: curvature
+  tau_R: reentry_delay
+  IC: composite_integrity
+  kappa: "ln(IC)"
+  U: "C / (1 + tau_R)"
+closures:
+  face_policy: pre_clip
+  oor_policy: clip_and_flag
+tolerances:
+  eps_kappa: ${εκ}
+  eps_U_abs: ${εU_abs}
+  eps_U_rel: ${εU_rel}
+  eps_C_abs: ${εC}
+  eps_tau_abs: ${ετ}
+  tau_min_hint: 0.0
+welds:
+  checks:
+    - name: kappa_continuity
+      rule: "abs(kappa_R - kappa_L) <= eps_kappa"
+    - name: U_transport
+      rule: "abs(U_R - U_L) <= max(eps_U_abs, eps_U_rel * max(abs(U_R), abs(U_L)))"
+    - name: lipschitz_bound
+      rule: |
+        # From UMCP–EQ–008: |ΔU| <= |ΔC|/(1+tau_min) + C_max*|Δtau|/(1+tau_min)^2
+        # tau_min = max(tau_min_hint, min(tau_L, tau_R), 0.0)
+        # C_max  = max(|C_L|, |C_R|)
+        # Assert: bound >= |U_R - U_L|
+  record_fields: [boundary_index,t_L,t_R,kappa_L,kappa_R,kappa_delta,U_L,U_R,U_delta,C_L,C_R,tau_L,tau_R,pass_kappa,pass_U,pass_lip]
+  accounting:
+    cumulative_kappa_jump_rule: "sum(|kappa_delta| for all welds) <= m * eps_kappa"
+    mean_kappa_diff_bound: "m * eps_kappa / N"
+gates:
+  stable: {"omega_lt": ${θS}, "F_gt": 0.90, "S_lt": 0.15, "C_lt": 0.14}
+  collapse: {"omega_ge": ${θC}, "critical_if_IC_lt": ${θIC}}
+export:
+  artifacts: ["freeze.json","audit.csv","audit_regimes.csv","weld_report.json","proof_pack.md"]
+  hashing: sha256
+  manifest: MANIFEST.schema.json
+notes:
+  - "Symbol-first: placeholders like ${εκ} bind at freeze."
+  - "Time grid fingerprinting via timestamps_sha256 detects clock warps."

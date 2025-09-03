@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "UMCP Export Manifest",
+  "type": "object",
+  "required": [
+    "run_id",
+    "created_at",
+    "artifacts",
+    "hashing"
+  ],
+  "properties": {
+    "run_id": {
+      "type": "string"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "hashing": {
+      "type": "string",
+      "enum": [
+        "sha256"
+      ]
+    },
+    "spec_version": {
+      "type": "integer"
+    },
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "name",
+          "path",
+          "sha256",
+          "bytes"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "bytes": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "freeze",
+              "audit",
+              "regimes",
+              "weld_report",
+              "proof_pack",
+              "other"
+            ]
+          }
+        }
+      }
+    },
+    "weld_summary": {
+      "type": "object",
+      "properties": {
+        "m": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "eps_kappa": {
+          "type": "number"
+        },
+        "cum_kappa_jump": {
+          "type": "number"
+        },
+        "bound": {
+          "type": "number"
+        },
+        "pass": {
+          "type": "boolean"
+        }
+      }
+    }
+  }
+}

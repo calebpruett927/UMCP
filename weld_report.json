@@ -1,0 +1,16 @@
+{
+  "spec_version": 1,
+  "generated_at": "2025-09-03T21:10:07",
+  "tolerances": {
+    "eps_kappa": "${\u03b5\u03ba}",
+    "eps_U_abs": "${\u03b5U_abs}",
+    "eps_U_rel": "${\u03b5U_rel}"
+  },
+  "welds": [],
+  "summary": {
+    "m": 0,
+    "cum_kappa_jump": 0.0,
+    "bound": "m*eps_kappa",
+    "pass": true
+  }
+}
