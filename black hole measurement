@@ -1,0 +1,332 @@
+# UMCP — OOR (Out-Of-Range) audit with pivot-to-post-clip guard
+# - Computes r_oor (low/high/total) for polarization-across-bands cases (86/230/345 GHz)
+#   across ψ∈[0°,90°], with Faraday rotation.
+# - Applies default policy: ω = pre_clip; pivot to post_clip+guard when r_oor > 0.05 (5%).
+# - Reports gate decisions (pre vs post) and flags transitions caused by OOR artifacts.
+# - Mirrors the same audit for spin tiles at r≈6 r_g and a* ∈ {0, 0.5, 0.9, 0.98}.
+# - Emits CSVs + a few charts (one figure per chart, Matplotlib only).
+
+import numpy as np, matplotlib.pyplot as plt, math, json, time, os, hashlib, uuid, pandas as pd
+
+# ---------- Setup ----------
+TZ = "America/Chicago"
+now_utc = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+log_path = "/mnt/data/umcp_derivations_log.jsonl"
+guard_path = "/mnt/data/umcp_append_guard.json"
+
+def ensure_log():
+    if not os.path.exists(log_path):
+        with open(log_path, "w") as f:
+            f.write(json.dumps({"ts_utc": now_utc, "stage":"genesis", "name":"init", "info":{}}) + "\n")
+
+def append_log(entry: dict):
+    with open(log_path, "a") as f:
+        f.write(json.dumps(entry) + "\n")
+
+def chain_head(path: str):
+    H = hashlib.sha256(b"UMCP-LOG-V1").digest()
+    count = 0
+    with open(path, "rb") as f:
+        for raw in f:
+            H = hashlib.sha256(H + raw).digest()
+            count += 1
+    return H.hex(), count
+
+def sha256_file(path: str) -> str:
+    h = hashlib.sha256()
+    with open(path, "rb") as f: h.update(f.read())
+    return h.hexdigest()
+
+ensure_log()
+
+# ---------- Physics identities & closures (consistent with prior runs) ----------
+G = 6.67430e-11; c = 299792458.0; M_sun = 1.98847e30
+M = 4.297e6*M_sun; r_g = G*M/c**2; r_s = 2*r_g
+
+incl = math.radians(60.0)
+r_rg = 6.0
+Nphi = 2048
+phi = np.linspace(0, 2*math.pi, Nphi, endpoint=False)
+
+p_beam = 3.0
+alpha_spec = -0.7
+nu0 = 230.0
+tau0 = 1.2
+eps_tau = 0.25
+
+# Polarization closures
+p0 = 0.20; zeta = 0.30; eps_pol = 0.20
+RM = 5.0e5  # rad/m^2
+
+def observable_I(nu_GHz, phi, r_rg, incl):
+    r = r_rg*r_g
+    beta = min(math.sqrt(max(r_g/r, 0.0)), 0.6)
+    gamma = 1.0/math.sqrt(1.0 - beta**2)
+    g_gr = math.sqrt(max(1.0 - r_s/r, 1e-12))
+    delta = 1.0/(gamma*(1.0 - beta*math.sin(incl)*np.cos(phi)))
+    nu = nu_GHz
+    tau = tau0 * (nu0/nu)**2 * (1.0 + eps_tau*np.cos(phi))
+    I = (delta**p_beam) * (g_gr**3) * (nu/nu0)**alpha_spec * np.exp(-tau)
+    return I
+
+def freeze_quantiles(x, eps_g=0.05, h_g=0.05):
+    Q01 = np.quantile(x, 0.01); Q99 = np.quantile(x, 0.99)
+    a = Q01 - eps_g*(Q99 - Q01); b = (Q99 - Q01)*(1+h_g)
+    if b <= 0: b = np.finfo(float).eps
+    return float(a), float(b)
+
+def umcp_core(I, clip_mode=False):
+    a,b = freeze_quantiles(I, 0.05, 0.05)
+    y = (I - a)/b
+    y_clip = np.clip(y, 0.0, 1.0)
+    # OOR rates (pre-clip y evaluated against [0,1])
+    oor_low = float(np.mean(y < 0.0))
+    oor_high = float(np.mean(y > 1.0))
+    oor_tot = oor_low + oor_high
+    # ω pre-clip or post-clip per policy
+    y_used = y if not clip_mode else y_clip
+    dy = np.diff(y_used, append=y_used[0])
+    omega = np.abs(dy)
+    F = 1.0 - omega
+    S = -np.log(1.0 - omega + 1e-8)
+    # simple curvature & recurrence proxies
+    # use clipped signal to avoid numerical pathologies
+    xh = y_clip
+    # curvature (3-lag quadratic energy)
+    K = 3
+    C = np.zeros_like(xh)
+    for i in range(len(xh)):
+        acc = 0.0
+        for k in range(1, K+1):
+            j = (i - k) % len(xh)
+            acc += (xh[i] - xh[j])**2
+        C[i] = acc / K
+    # recurrence (first return < eps)
+    eps_ret=1e-3; max_search=64
+    tau_R = np.zeros_like(xh)
+    for i in range(len(xh)):
+        found=False
+        for dt in range(1, max_search+1):
+            j = (i - dt) % len(xh)
+            if abs(xh[i]-xh[j]) < eps_ret:
+                tau_R[i]=dt; found=True; break
+        if not found: tau_R[i] = max_search
+    alpha_curv=1.0
+    IC = F * np.exp(-S) * (1.0 - omega) * np.exp(-alpha_curv * C / (1.0 + tau_R))
+    kappa = np.log(np.maximum(IC, np.finfo(float).eps))
+    return {
+        "a":a,"b":b,"y":y,"y_clip":y_clip,"omega":omega,"F":F,"S":S,"C":C,"tau_R":tau_R,"IC":IC,"kappa":kappa,
+        "oor_low":oor_low,"oor_high":oor_high,"oor_tot":oor_tot
+    }
+
+def polarization_fields(phi, incl, psi_deg, RM, nu_GHz):
+    psi = math.radians(psi_deg)
+    f_tor = math.cos(psi); f_pol = math.sin(psi)
+    chi0 = np.arctan2(f_pol * math.sin(incl) * np.sin(phi),
+                      f_tor * np.cos(phi))
+    lam = c / (nu_GHz*1e9)
+    chi = chi0 + RM * (lam**2)
+    p = p0 * (1.0 - zeta * (np.sin(phi)**2) * (math.sin(incl)**2))
+    return chi, p
+
+def apply_polarization_transfer(I_pre, chi, p):
+    P = p * I_pre
+    Q = P * np.cos(2.0*chi)
+    U = P * np.sin(2.0*chi)
+    Pmag = np.sqrt(Q*Q + U*U)
+    with np.errstate(divide='ignore', invalid='ignore'):
+        frac = np.where(I_pre>0, Pmag / I_pre, 0.0)
+    T_pol = 1.0 + 0.20 * (frac - frac.mean())
+    I_post_raw = I_pre * np.clip(T_pol, 1e-6, None)
+    return I_post_raw
+
+# Gate decision (aggregate over phase)
+def gate_of(stats):
+    omega_m = float(np.mean(stats["omega"]))
+    F_m = float(np.mean(stats["F"]))
+    S_m = float(np.mean(stats["S"]))
+    C_m = float(np.mean(stats["C"]))
+    IC_m = float(np.mean(stats["IC"]))
+    # Stable if all thresholds met
+    if (omega_m < 0.038) and (F_m > 0.90) and (S_m < 0.15) and (C_m < 0.14):
+        gate = "Stable"
+    elif omega_m < 0.30:
+        gate = "Watch"
+    else:
+        gate = "Collapse"
+    if IC_m < 0.30 and gate != "Collapse":
+        gate = gate + " (Critical)"
+    return gate, {"omega_m":omega_m,"F_m":F_m,"S_m":S_m,"C_m":C_m,"IC_m":IC_m}
+
+# ---------- 1) OOR audit for polarization-across-bands ----------
+bands = [86.0, 230.0, 345.0]
+psi_vals = np.linspace(0.0, 90.0, 19)  # coarser for audit speed
+pivot_thresh = 0.05  # 5% OOR => pivot to post_clip
+
+rows_pol = []
+
+for nu in bands:
+    I_pre = observable_I(nu, phi, r_rg, incl)
+    pre_preclip = umcp_core(I_pre, clip_mode=False)
+    pre_postclip = umcp_core(I_pre, clip_mode=True)  # used only for diagnostic; baseline ω uses pre-clip per policy
+
+    for psi in psi_vals:
+        chi, p = polarization_fields(phi, incl, psi, RM, nu)
+        I_post_raw = apply_polarization_transfer(I_pre, chi, p)
+
+        post_preclip = umcp_core(I_post_raw, clip_mode=False)
+        pivot = post_preclip["oor_tot"] > pivot_thresh
+        post_postclip = umcp_core(I_post_raw, clip_mode=True) if pivot else post_preclip
+
+        gate_pre, agg_pre = gate_of(post_preclip)
+        gate_post, agg_post = gate_of(post_postclip)
+
+        rows_pol.append({
+            "band_GHz": float(nu),
+            "psi_deg": float(psi),
+            "oor_low": post_preclip["oor_low"],
+            "oor_high": post_preclip["oor_high"],
+            "oor_total": post_preclip["oor_tot"],
+            "pivot_to_postclip": bool(pivot),
+            "gate_preclip": gate_pre,
+            "gate_postclip": gate_post,
+            "gate_changed_by_pivot": bool(gate_pre != gate_post),
+            "omega_mean_preclip": agg_pre["omega_m"],
+            "omega_mean_postclip": agg_post["omega_m"],
+            "IC_mean_preclip": agg_pre["IC_m"],
+            "IC_mean_postclip": agg_post["IC_m"]
+        })
+
+df_pol = pd.DataFrame(rows_pol)
+csv_pol = "/mnt/data/umcp_oor_audit_polbands.csv"
+df_pol.to_csv(csv_pol, index=False)
+
+# ---------- 2) OOR audit for spin tiles (r≈6, spins set) ----------
+spins = [0.0, 0.5, 0.9, 0.98]
+rows_spin = []
+
+# Kerr transfer proxy (same as earlier run)
+def kerr_transfer(r_rg, a_star, incl, phi, n=1.5, A1=0.35, A2=0.20, sigma=0.35):
+    term1 = (A1 * a_star * math.sin(incl) * np.cos(phi)) / (r_rg**n)
+    dphi = np.angle(np.exp(1j*(phi - np.pi)))
+    m = 2.0
+    amp = A2 * (a_star**2) * (max(3.0, 1e-6) / r_rg)**m
+    term2 = amp * np.exp(-(dphi**2) / (2.0 * sigma**2))
+    T = 1.0 + term1 + term2
+    return np.clip(T, 1e-6, None)
+
+for nu in bands:
+    I_pre = observable_I(nu, phi, r_rg, incl)
+    for a_star in spins:
+        I_post_raw = I_pre * kerr_transfer(r_rg, a_star, incl, phi)
+        post_preclip = umcp_core(I_post_raw, clip_mode=False)
+        pivot = post_preclip["oor_tot"] > pivot_thresh
+        post_postclip = umcp_core(I_post_raw, clip_mode=True) if pivot else post_preclip
+
+        gate_pre, agg_pre = gate_of(post_preclip)
+        gate_post, agg_post = gate_of(post_postclip)
+
+        rows_spin.append({
+            "band_GHz": float(nu),
+            "a_star": float(a_star),
+            "oor_low": post_preclip["oor_low"],
+            "oor_high": post_preclip["oor_high"],
+            "oor_total": post_preclip["oor_tot"],
+            "pivot_to_postclip": bool(pivot),
+            "gate_preclip": gate_pre,
+            "gate_postclip": gate_post,
+            "gate_changed_by_pivot": bool(gate_pre != gate_post),
+            "omega_mean_preclip": agg_pre["omega_m"],
+            "omega_mean_postclip": agg_post["omega_m"],
+            "IC_mean_preclip": agg_pre["IC_m"],
+            "IC_mean_postclip": agg_post["IC_m"]
+        })
+
+df_spin = pd.DataFrame(rows_spin)
+csv_spin = "/mnt/data/umcp_oor_audit_spin.csv"
+df_spin.to_csv(csv_spin, index=False)
+
+# ---------- 3) Summaries & Charts ----------
+# Pivot rates per band (polarization)
+pivot_rates = df_pol.groupby("band_GHz")["pivot_to_postclip"].mean().reset_index()
+pivot_rates.rename(columns={"pivot_to_postclip":"pivot_rate"}, inplace=True)
+
+# Gate changes eliminated by pivot
+eliminated = df_pol[(df_pol["pivot_to_postclip"]) & (df_pol["gate_changed_by_pivot"])].groupby("band_GHz").size().reset_index(name="count")
+total_pivot = df_pol[df_pol["pivot_to_postclip"]].groupby("band_GHz").size().reset_index(name="pivot_cases")
+summary_merge = pivot_rates.merge(total_pivot, on="band_GHz", how="left").merge(eliminated, on="band_GHz", how="left")
+summary_merge.fillna({"pivot_cases":0,"count":0}, inplace=True)
+
+# Chart: OOR total heatmap per band (ψ × ϕ aggregated via mean across ϕ already -> we have only total; make ψ vs band color by oor_total)
+# We'll draw one chart per band with ψ on y and color oor_total (single column idea won't be great); better: line plot oor_total vs ψ for each band.
+plt.figure(figsize=(10.8, 4.6))
+for nu in bands:
+    sub = df_pol[df_pol["band_GHz"]==nu].sort_values("psi_deg")
+    plt.plot(sub["psi_deg"].values, sub["oor_total"].values, label=f"{int(nu)} GHz")
+plt.xlabel("field pitch angle ψ (deg)")
+plt.ylabel("OOR rate (total)")
+plt.title("OOR audit — total out-of-range rate vs ψ (per band)")
+plt.legend(loc="upper right", frameon=False)
+plt.tight_layout()
+plot_oor_vs_psi = "/mnt/data/umcp_oor_rate_vs_psi.png"
+plt.savefig(plot_oor_vs_psi, dpi=180, bbox_inches="tight"); plt.close()
+
+# Chart: Pivot rate per band (bar)
+plt.figure(figsize=(8.6, 4.6))
+x = np.arange(len(bands))
+vals = [float(summary_merge[summary_merge["band_GHz"]==nu]["pivot_rate"]) if nu in summary_merge["band_GHz"].values else 0.0 for nu in bands]
+labels = [f"{int(nu)}" for nu in bands]
+plt.bar(x, vals)
+plt.xticks(x, labels)
+plt.xlabel("Band (GHz)"); plt.ylabel("Pivot rate")
+plt.title("OOR audit — fraction of ψ cases triggering pivot-to-post-clip")
+plt.tight_layout()
+plot_pivot_rate = "/mnt/data/umcp_oor_pivot_rate_per_band.png"
+plt.savefig(plot_pivot_rate, dpi=180, bbox_inches="tight"); plt.close()
+
+# ---------- 4) Manifest ----------
+manifest = {
+    "meta": {
+        "title": "UMCP — OOR audit with pivot-to-post-clip guard",
+        "created_utc": now_utc, "tz": TZ,
+        "policy": {"omega": "pre_clip", "pivot_thresh_total": 0.05, "post_clip_guard": True}
+    },
+    "files": {
+        "polbands_csv": csv_pol,
+        "spin_csv": csv_spin,
+        "oor_vs_psi_png": plot_oor_vs_psi,
+        "pivot_rate_png": plot_pivot_rate
+    },
+    "sha256": {
+        "polbands_csv": sha256_file(csv_pol),
+        "spin_csv": sha256_file(csv_spin),
+        "oor_vs_psi_png": sha256_file(plot_oor_vs_psi),
+        "pivot_rate_png": sha256_file(plot_pivot_rate)
+    },
+    "notes": {
+        "summary_per_band": summary_merge.to_dict(orient="records")
+    }
+}
+manifest_path = "/mnt/data/umcp_oor_audit_manifest.json"
+with open(manifest_path, "w") as f:
+    json.dump(manifest, f, indent=2)
+
+# ---------- Log & guard ----------
+append_log({
+    "ts_utc": now_utc, "stage": "regime",
+    "name": "oor_audit_and_pivot_guard",
+    "info": {"manifest": manifest_path, "policy": manifest["meta"]["policy"]}
+})
+head, count = chain_head(log_path)
+with open(guard_path, "w") as f:
+    json.dump({"append_only": True, "current_chain_head": head, "updated_utc": now_utc}, f, indent=2)
+
+{
+    "manifest": manifest_path,
+    "polbands_csv": csv_pol,
+    "spin_csv": csv_spin,
+    "oor_vs_psi_png": plot_oor_vs_psi,
+    "pivot_rate_png": plot_pivot_rate,
+    "log_lines": count,
+    "guard_head": head
+}
