@@ -1,0 +1,2 @@
+source_file,channel,p1,p99,spread,a,b,epsilon_g,h_g
+TEMPLATE.csv,TEMPLATE.csv::x_raw,,,,,,0.05,0.05

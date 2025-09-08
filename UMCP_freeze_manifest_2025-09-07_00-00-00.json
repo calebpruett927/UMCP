@@ -1,0 +1,29 @@
+{
+  "kind": "umcp_freeze_manifest",
+  "generated_at": "2025-09-07 00:00:00",
+  "timezone": "America/Chicago",
+  "policy_id": "UMCP-2.0-defaults",
+  "norm_mode": "global_fixed",
+  "calibration": "P1/P99_with_guardbands",
+  "guard_bands": {
+    "epsilon_g": 0.05,
+    "h_g": 0.05
+  },
+  "omega_policy": "pre_clip",
+  "oor_policy": "clip_and_flag",
+  "notes": "Freeze computed via P1/P99 on numeric columns for discovered CSVs in /mnt/data; use as defaults unless you supply explicit (a,b).",
+  "channels": [
+    {
+      "channel": "TEMPLATE.csv::x_raw",
+      "source_file": "TEMPLATE.csv",
+      "a": null,
+      "b": null
+    }
+  ],
+  "artifacts": {
+    "freeze_table_csv": {
+      "path": "/mnt/data/UMCP_freeze_2025-09-07_00-00-00.csv",
+      "sha256": "dd5bd2320e9a0433e1719af21f8b2e118038741395a5d0916f2be0044f2a883c"
+    }
+  }
+}
